@@ -2,21 +2,21 @@ import os
 import pandas as pd
 import evaluate
 import torch
+from bert_score import score as bert_score
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 
 def evaluate_bertscore(references: list, hypotheses: list) -> list[float]:
-    metric = evaluate.load("bertscore")
-    results = metric.compute(
-        predictions=hypotheses,
-        references=references,
-        model_type="microsoft/deberta-xlarge-mnli",  # Better model for GPU
-        device=device,
-        batch_size=32  # Increase for H100
+    P, R, F1 = bert_score(
+        hypotheses,
+        references,
+        model_type="microsoft/deberta-xlarge-mnli",
+        device="cuda",
+        batch_size=32
     )
-    return results["f1"]
+    return F1.tolist()
 
 
 def evaluate_bleurt(references: list, hypotheses: list) -> list[float]:
