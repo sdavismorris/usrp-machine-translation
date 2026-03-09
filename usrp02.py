@@ -3,7 +3,7 @@ import csv
 import pandas as pd
 ds = load_dataset("nikitam/ACES", "ACES")
 
-metric_data = {'source': [], 'translation': [], 'reference': [], 'bleu-score': [], 'chrf-score':[], 'ter-score': [], 'id': [], 'qual': [], 'error-type': []}
+metric_data = {'source': [], 'translation': [], 'reference': [], 'bleu-score': [], 'chrf-score':[], 'ter-score': [], 'bert-score': [], 'bleurt-score': [], 'comet-score': [],'id': [], 'label': [], 'error-type': []}
 phenomena = {}
 for x in ds['train']['phenomena']:
     if x not in phenomena:
@@ -15,10 +15,10 @@ error_types = {'addition', 'omission', 'untranslated', 'mistranslation', 'do-not
 error_data = {error : {key : [] for key in metric_data} for error in error_types}
 
 i = 0
-with (open("metric_data.csv", encoding="utf8") as csv_file):
+with (open("metric_data_2_with_labels.csv", encoding="utf8") as csv_file):
     reader = csv.reader(csv_file)
     # skip header
-    next(reader)
+    row = next(reader)
     for row in reader:
         p = ds['train']['phenomena'][i//2]
         # assign specific phenomenon to general error type
@@ -53,12 +53,12 @@ with (open("metric_data.csv", encoding="utf8") as csv_file):
         error_data[error_type]['bleu-score'].append(row[4])
         error_data[error_type]['chrf-score'].append(row[5])
         error_data[error_type]['ter-score'].append(row[6])
+        error_data[error_type]['bert-score'].append(row[7])
+        error_data[error_type]['bleurt-score'].append(row[8])
+        error_data[error_type]['comet-score'].append(row[9])
         # sets of good/bad translation given same id
         error_data[error_type]['id'].append(i // 2)
-        if i % 2 == 0:
-            error_data[error_type]['qual'].append('good')
-        else:
-            error_data[error_type]['qual'].append('bad')
+        error_data[error_type]['label'].append(row[10])
         error_data[error_type]['error-type'].append(error_type)
         i += 1
         print(row)
