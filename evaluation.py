@@ -1,54 +1,45 @@
+from sklearn.metrics import roc_auc_score
 import pandas as pd
-import evaluate
-import torch
+from scipy.stats import ttest_rel
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using device: {device}")
+def evaluate_metrics(data: pd.DataFrame, label_column: str, metrics: list[str]) -> dict[str, float]:
+    """
+    Evaluate each MT metric and meta-metric on:
+    - the pairwise ranking accuracy (proportion of times the metric correctly ranks the correct translation higher than the incorrect translation)
+    - the AUC-ROC score (measures the ability of the metric to distinguish between correct and incorrect translations across all possible thresholds)
+    - mean margin (average difference in metric scores between correct and incorrect translations)
+    - p-value from a paired t-test (statistical significance of the difference in scores between correct and incorrect translations)
 
+    Args:
+        data: A pandas DataFrame containing the test dataset with columns for labels ('correct' or 'incorrect') and metric scores.
+        label_column: The name of the column in the DataFrame that contains the labels.
+        metrics: A list of column names in the DataFrame that correspond to the MT metrics and meta-metric to be evaluated.
 
-def evaluate_bertscore(references: list, hypotheses: list) -> list[float]:
-    metric = evaluate.load("bertscore")
-    results = metric.compute(
-        predictions=hypotheses,
-        references=references,
-        model_type="xlm-roberta-large",
-        num_layers=12,
-        batch_size=16,
-        device=device
-    )
-    return results["f1"]
+    Returns:
+        A dictionary where keys are metric names and values are dictionaries containing the evaluation results for each metric.
+    """
+    results = {}
+    for metric in metrics:
+        correct_scores = data[data[label_column] == "correct"][metric].to_numpy()
+        incorrect_scores = data[data[label_column] == "incorrect"][metric].to_numpy()
 
+        # Pairwise ranking accuracy
+        pairwise_accuracy = (correct_scores > incorrect_scores).mean()
 
-def evaluate_bleurt(references: list, hypotheses: list) -> list[float]:
-    metric = evaluate.load("bleurt", "BLEURT-20")
-    results = metric.compute(
-        predictions=hypotheses,
-        references=references,
-    )
-    return results["scores"]
+        # AUC-ROC score
+        auc_roc = roc_auc_score(data["label"].apply(lambda x: 1 if x == "correct" else 0), data[metric])
 
+        # Mean margin
+        mean_margin = (correct_scores - incorrect_scores).mean()
 
-def evaluate_comet(sources: list, references: list, hypotheses: list) -> list[float]:
-    metric = evaluate.load("comet")
-    results = metric.compute(
-        sources=sources,
-        predictions=hypotheses,
-        references=references,
-    )
-    return results["scores"]
+        # Paired t-test p-value
+        t_stat, p_value = ttest_rel(correct_scores, incorrect_scores)
 
+        results[metric] = {
+            "pairwise_accuracy": pairwise_accuracy,
+            "auc_roc": auc_roc,
+            "mean_margin": mean_margin,
+            "p_value": p_value
+        }
 
-df = pd.read_csv("metric_data.csv")
-references = df["reference"].tolist()
-hypotheses = df["translation"].tolist()
-sources = df["source"].tolist()
-
-bertscore_eval = evaluate_bertscore(references, hypotheses)
-bleurt_eval = evaluate_bleurt(references, hypotheses)
-comet_eval = evaluate_comet(sources, references, hypotheses)
-
-df["bertscore"] = bertscore_eval
-df["bleurt"] = bleurt_eval
-df["comet"] = comet_eval
-
-df.to_csv("metric_data_2.csv", index=False)
+    return results
